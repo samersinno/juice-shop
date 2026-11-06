@@ -117,7 +117,7 @@ export class CodingChallengeFixItComponent implements OnInit, AfterViewInit, OnD
 
   shuffle (): void {
     this.randomFixes = this.fixes()
-      .map((fix, index) => ({ fix, index, sort: Math.random() }))
+      .map((fix, index) => ({ fix, index, sort: secureRandom() }))
       .sort((a, b) => a.sort - b.sort)
       .map(({ fix, index }) => ({ fix, index }))
   }
@@ -146,4 +146,8 @@ export class CodingChallengeFixItComponent implements OnInit, AfterViewInit, OnD
       setShaking: (s) => { this.shaking = s }
     })
   }
+}
+
+function secureRandom (): number {
+  return crypto.getRandomValues(new Uint32Array(1))[0] / 4294967296
 }

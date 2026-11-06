@@ -6,12 +6,15 @@
 import { type NextFunction, type Request, type Response } from 'express'
 import yaml from 'js-yaml'
 import fs from 'node:fs/promises'
+import path from 'node:path'
 
 import { getCodeChallenges } from '../lib/codingChallenges'
 import * as challengeUtils from '../lib/challengeUtils'
 import * as accuracy from '../lib/accuracy'
 import * as utils from '../lib/utils'
 import { type ChallengeKey } from '@juice-shop/models/challenge'
+
+const CODEFIXES_DIR = path.resolve('./data/static/codefixes')
 
 interface SnippetRequestBody {
   challenge: string
@@ -86,8 +89,9 @@ export const checkVulnLines = () => async (req: Request<Record<string, unknown>,
   const selectedLines: number[] = req.body.selectedLines
   const verdict = getVerdict(vulnLines, neutralLines, selectedLines)
   let hint
-  if (await fs.stat('./data/static/codefixes/' + key + '.info.yml')) {
-    const codingChallengeInfos = yaml.load(await fs.readFile('./data/static/codefixes/' + key + '.info.yml', { encoding: 'utf8' }))
+  const infoFile = path.join(CODEFIXES_DIR, path.basename(String(key)) + '.info.yml')
+  if (path.dirname(infoFile) === CODEFIXES_DIR && await fs.stat(infoFile)) {
+    const codingChallengeInfos: any = yaml.load(await fs.readFile(infoFile, { encoding: 'utf8' }), { schema: yaml.JSON_SCHEMA })
     if (codingChallengeInfos?.hints) {
       if (accuracy.getFindItAttempts(key) > codingChallengeInfos.hints.length) {
         if (vulnLines.length === 1) {

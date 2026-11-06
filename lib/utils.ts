@@ -5,6 +5,7 @@
 
 import packageJson from '../package.json'
 import fs from 'node:fs'
+import path from 'node:path'
 import logger from './logger'
 import config from 'config'
 import download from 'download'
@@ -108,7 +109,11 @@ export const extractFilename = (url: string) => {
 export const downloadToFile = async (url: string, dest: string) => {
   try {
     const data = await download(url)
-    fs.writeFileSync(dest, data)
+    const resolvedDest = path.resolve(dest)
+    if (!resolvedDest.startsWith(process.cwd() + path.sep)) {
+      throw new Error('Destination outside of working directory')
+    }
+    fs.writeFileSync(resolvedDest, data)
   } catch (err) {
     logger.warn('Failed to download ' + url + ' (' + getErrorMessage(err) + ')')
   }

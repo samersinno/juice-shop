@@ -19,7 +19,7 @@ resource "aws_subnet" "public" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = var.public_subnet_cidrs[count.index]
   availability_zone       = data.aws_availability_zones.available.names[count.index]
-  map_public_ip_on_launch = true
+  map_public_ip_on_launch = false
 
   tags = {
     Name        = "${var.project_name}-public-${count.index}"
@@ -121,6 +121,8 @@ resource "aws_security_group" "ecs" {
 resource "aws_lb" "juice_shop" {
   name               = "${var.project_name}-alb"
   internal           = false
+  drop_invalid_header_fields = true
+  enable_deletion_protection = true
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb.id]
   subnets            = aws_subnet.public[*].id
@@ -159,8 +161,13 @@ resource "aws_lb_listener" "http" {
   protocol          = "HTTP"
 
   default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.juice_shop.arn
+    type = "redirect"
+
+    redirect {
+      port        = "443"
+      protocol    = "HTTPS"
+      status_code = "HTTP_301"
+    }
   }
 }
 
@@ -247,7 +254,7 @@ resource "aws_security_group" "efs" {
 
 resource "aws_efs_file_system" "juice_shop_data" {
   creation_token = "${var.project_name}-sqlite-data"
-  encrypted      = var.efs_encrypted
+  encrypted      = true
 
   performance_mode = "generalPurpose"
   throughput_mode  = "bursting"

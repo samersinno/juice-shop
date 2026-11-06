@@ -4,6 +4,7 @@
  */
 
 import fs from 'node:fs'
+import path from 'node:path'
 import config from 'config'
 import { type Request, type Response } from 'express'
 import { AllHtmlEntities as Entities } from 'html-entities'
@@ -14,6 +15,8 @@ import { challenges } from '../data/datacache'
 import * as utils from '../lib/utils'
 
 const entities = new Entities()
+const VIDEO_DIR = path.resolve('frontend/dist/frontend/assets/public/videos')
+const videoFile = (name: string) => path.join(VIDEO_DIR, path.basename(name))
 
 export const getVideo = () => {
   return (req: Request, res: Response) => {
@@ -79,14 +82,14 @@ export const promotionVideo = () => {
 
 function getSubsFromFile () {
   const subtitles = config.get<string>('application.promotion.subtitles') ?? 'owasp_promo.vtt'
-  const data = fs.readFileSync('frontend/dist/frontend/assets/public/videos/' + subtitles, 'utf8')
+  const data = fs.readFileSync(videoFile(subtitles), 'utf8')
   return data.toString()
 }
 
 function videoPath () {
   if (config.get<string>('application.promotion.video') !== null) {
     const video = utils.extractFilename(config.get<string>('application.promotion.video'))
-    return 'frontend/dist/frontend/assets/public/videos/' + video
+    return videoFile(video)
   }
-  return 'frontend/dist/frontend/assets/public/videos/owasp_promo.mp4'
+  return videoFile('owasp_promo.mp4')
 }

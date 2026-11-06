@@ -4,6 +4,7 @@
  */
 
 import { type Request, type Response, type NextFunction } from 'express'
+import crypto from 'node:crypto'
 import { CaptchaModel } from '../models/captcha'
 
 export function captchas () {
@@ -11,15 +12,25 @@ export function captchas () {
     const captchaId = req.app.locals.captchaId++
     const operators = ['*', '+', '-']
 
-    const firstTerm = Math.floor((Math.random() * 10) + 1)
-    const secondTerm = Math.floor((Math.random() * 10) + 1)
-    const thirdTerm = Math.floor((Math.random() * 10) + 1)
+    const firstTerm = crypto.randomInt(1, 11)
+    const secondTerm = crypto.randomInt(1, 11)
+    const thirdTerm = crypto.randomInt(1, 11)
 
-    const firstOperator = operators[Math.floor((Math.random() * 3))]
-    const secondOperator = operators[Math.floor((Math.random() * 3))]
+    const firstOperator = operators[crypto.randomInt(0, 3)]
+    const secondOperator = operators[crypto.randomInt(0, 3)]
 
     const expression = firstTerm.toString() + firstOperator + secondTerm.toString() + secondOperator + thirdTerm.toString()
-    const answer = eval(expression).toString() // eslint-disable-line no-eval
+    const apply = (a: number, op: string, b: number) => op === '*' ? a * b : op === '+' ? a + b : a - b
+    // standard precedence: '*' binds tighter than '+' and '-'
+    let answerValue: number
+    if (firstOperator === '*') {
+      answerValue = apply(apply(firstTerm, firstOperator, secondTerm), secondOperator, thirdTerm)
+    } else if (secondOperator === '*') {
+      answerValue = apply(firstTerm, firstOperator, apply(secondTerm, secondOperator, thirdTerm))
+    } else {
+      answerValue = apply(apply(firstTerm, firstOperator, secondTerm), secondOperator, thirdTerm)
+    }
+    const answer = answerValue.toString()
 
     const captcha = {
       captchaId,
@@ -34,7 +45,7 @@ export function captchas () {
 
 export const verifyCaptcha = () => async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const captcha = await CaptchaModel.findOne({ where: { captchaId: req.body.captchaId } })
+    const captcha = await CaptchaModel.findOne({ where: { captchaId: String(req.body.captchaId) } })
     if ((captcha != null) && req.body.captcha === captcha.answer) {
       next()
     } else {

@@ -9,7 +9,7 @@ import { CardModel } from '../models/card'
 
 export function getWalletBalance () {
   return async (req: Request, res: Response, next: NextFunction) => {
-    const wallet = await WalletModel.findOne({ where: { UserId: req.body.UserId } })
+    const wallet = await WalletModel.findOne({ where: { UserId: String(req.body.UserId) } })
     if (wallet != null) {
       res.status(200).json({ status: 'success', data: wallet.balance })
     } else {
@@ -20,11 +20,11 @@ export function getWalletBalance () {
 
 export function addWalletBalance () {
   return async (req: Request, res: Response, next: NextFunction) => {
-    const cardId = req.body.paymentId
-    const card = cardId ? await CardModel.findOne({ where: { id: cardId, UserId: req.body.UserId } }) : null
+    const cardId = req.body.paymentId != null ? String(req.body.paymentId) : null
+    const card = cardId ? await CardModel.findOne({ where: { id: cardId, UserId: String(req.body.UserId) } }) : null
     if (card != null) {
       try {
-        await WalletModel.increment({ balance: req.body.balance }, { where: { UserId: req.body.UserId } })
+        await WalletModel.increment({ balance: Number(req.body.balance) }, { where: { UserId: String(req.body.UserId) } })
         res.status(200).json({ status: 'success', data: req.body.balance })
       } catch {
         res.status(404).json({ status: 'error' })

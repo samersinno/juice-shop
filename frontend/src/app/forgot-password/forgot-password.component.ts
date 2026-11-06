@@ -135,9 +135,9 @@ export class ForgotPasswordComponent {
 
 function matchValidator (passwordControl: AbstractControl) {
   return function matchOtherValidate (repeatPasswordControl: UntypedFormControl) {
-    const password = passwordControl.value
-    const passwordRepeat = repeatPasswordControl.value
-    if (password !== passwordRepeat) {
+    const original = passwordControl.value
+    const repeated = repeatPasswordControl.value
+    if (original !== repeated) {
       return { notSame: true }
     }
     return null

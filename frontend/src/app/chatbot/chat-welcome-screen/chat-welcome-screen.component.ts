@@ -68,7 +68,7 @@ export class ChatWelcomeScreenComponent implements OnInit {
       const availableSuggestions = allSuggestions.filter(s => s !== currentMessage)
 
       if (availableSuggestions.length > 0) {
-        const chosen = availableSuggestions[Math.floor(Math.random() * availableSuggestions.length)]
+        const chosen = availableSuggestions[crypto.getRandomValues(new Uint32Array(1))[0] % availableSuggestions.length]
         this.message.set(chosen)
       } else if (allSuggestions.length > 0) {
         this.message.set(allSuggestions[0])
