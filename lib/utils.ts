@@ -109,11 +109,11 @@ export const extractFilename = (url: string) => {
 export const downloadToFile = async (url: string, dest: string) => {
   try {
     const data = await download(url)
-    const resolvedDest = path.resolve(dest)
-    if (!resolvedDest.startsWith(process.cwd() + path.sep)) {
+    const relativeDest = path.relative(process.cwd(), path.resolve(dest))
+    if (relativeDest === '' || relativeDest.startsWith('..') || path.isAbsolute(relativeDest)) {
       throw new Error('Destination outside of working directory')
     }
-    fs.writeFileSync(resolvedDest, data)
+    fs.writeFileSync(path.join(process.cwd(), relativeDest), data)
   } catch (err) {
     logger.warn('Failed to download ' + url + ' (' + getErrorMessage(err) + ')')
   }

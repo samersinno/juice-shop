@@ -38,12 +38,17 @@ export function profileImageUrlUpload () {
           if (!['http:', 'https:'].includes(parsedUrl.protocol) || isPrivateHost(parsedUrl.hostname)) {
             throw new Error('url is not allowed')
           }
-          const response = await fetch(parsedUrl.toString())
+          const response = await fetch(parsedUrl.toString(), { redirect: 'error' })
           if (!response.ok || !response.body) {
             throw new Error('url returned a non-OK status code or an empty body')
           }
           const ext = ['jpg', 'jpeg', 'png', 'svg', 'gif'].includes(url.split('.').slice(-1)[0].toLowerCase()) ? url.split('.').slice(-1)[0].toLowerCase() : 'jpg'
-          const fileStream = fs.createWriteStream(path.join('frontend/dist/frontend/assets/public/images/uploads', path.basename(`${loggedInUser.data.id}.${ext}`)), { flags: 'w' })
+          const uploadDir = path.resolve('frontend/dist/frontend/assets/public/images/uploads')
+          const filePath = path.resolve(uploadDir, path.basename(`${Number(loggedInUser.data.id)}.${ext}`))
+          if (path.dirname(filePath) !== uploadDir) {
+            throw new Error('invalid file path')
+          }
+          const fileStream = fs.createWriteStream(filePath, { flags: 'w' })
           await finished(Readable.fromWeb(response.body as any).pipe(fileStream))
           const user = await UserModel.findByPk(loggedInUser.data.id)
           await user?.update({ profileImage: `/assets/public/images/uploads/${loggedInUser.data.id}.${ext}` })

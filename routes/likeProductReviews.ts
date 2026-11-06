@@ -16,7 +16,7 @@ const sleep = async (ms: number) => await new Promise(resolve => setTimeout(reso
 export function likeProductReviews () {
   return async (req: Request, res: Response, next: NextFunction) => {
     const id = req.body.id
-    if (typeof id !== 'string') {
+    if (typeof id !== 'string' || !/^[\w-]+$/.test(id)) {
       return res.status(400).json({ error: 'Wrong Params' })
     }
     const user = security.authenticatedUsers.from(req)
@@ -25,7 +25,7 @@ export function likeProductReviews () {
     }
 
     try {
-      const review = await db.reviewsCollection.findOne({ _id: id })
+      const review = await db.reviewsCollection.findOne({ _id: String(id) })
       if (!review) {
         return res.status(404).json({ error: 'Not found' })
       }
@@ -36,14 +36,14 @@ export function likeProductReviews () {
       }
 
       await db.reviewsCollection.update(
-        { _id: id },
+        { _id: String(id) },
         { $inc: { likesCount: 1 } }
       )
 
       // Artificial wait for timing attack challenge
       await sleep(150)
       try {
-        const updatedReview: Review = await db.reviewsCollection.findOne({ _id: id })
+        const updatedReview: Review = await db.reviewsCollection.findOne({ _id: String(id) })
         const updatedLikedBy = updatedReview.likedBy
         updatedLikedBy.push(user.data.email)
 
@@ -51,7 +51,7 @@ export function likeProductReviews () {
         challengeUtils.solveIf(challenges.timingAttackChallenge, () => count > 2)
 
         const result = await db.reviewsCollection.update(
-          { _id: id },
+          { _id: String(id) },
           { $set: { likedBy: updatedLikedBy } }
         )
         res.json(result)

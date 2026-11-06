@@ -19,23 +19,25 @@ export const findFilesWithCodeChallenges = async (paths: readonly string[]): Pro
   const matches = []
   for (const currPath of paths) {
     try {
-      if (!path.resolve(currPath).startsWith(process.cwd() + path.sep)) {
+      const relative = path.relative(process.cwd(), path.resolve(currPath))
+      if (relative === '' || relative.startsWith('..') || path.isAbsolute(relative)) {
         continue
       }
-      if ((await fs.lstat(currPath)).isDirectory()) {
-        const files = await fs.readdir(currPath)
+      const safePath = path.join(process.cwd(), relative)
+      if ((await fs.lstat(safePath)).isDirectory()) {
+        const files = await fs.readdir(safePath)
         const moreMatches = await findFilesWithCodeChallenges(
-          files.map(file => path.resolve(currPath, file))
+          files.map(file => path.resolve(safePath, file))
         )
         matches.push(...moreMatches)
       } else {
-        const code = await fs.readFile(currPath, 'utf8')
+        const code = await fs.readFile(safePath, 'utf8')
         if (
           // strings are split so that it doesn't find itself...
           code.includes('// vuln-code' + '-snippet start') ||
           code.includes('# vuln-code' + '-snippet start')
         ) {
-          matches.push({ path: currPath, content: code })
+          matches.push({ path: safePath, content: code })
         }
       }
     } catch (e) {
@@ -58,14 +60,45 @@ function getCodeChallengesFromFile (file: FileMatch) {
   return challenges.map((challengeKey) => getCodingChallengeFromFileContent(fileContent, challengeKey))
 }
 
-const escapeRegExp = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+const markerWithKey = (line: string, marker: string, key: string) => {
+  const idx = line.indexOf(marker)
+  return idx >= 0 && line.indexOf(key, idx + marker.length) >= 0
+}
+
+function extractSnippetBlock (source: string, key: string): string | null {
+  const lines = source.split('\n')
+  let offset = 0
+  let startOffset = -1
+  let startLine = -1
+  let endOffset = -1
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    if (startLine === -1) {
+      if (markerWithKey(line, ' vuln-code-snippet start', key)) {
+        startLine = i
+        startOffset = offset + line.indexOf(' vuln-code-snippet start')
+        let n = 0
+        while (n < 2 && startOffset > offset && '/#'.includes(source[startOffset - 1])) {
+          startOffset--
+          n++
+        }
+      }
+    } else if (markerWithKey(line, ' vuln-code-snippet end', key)) {
+      endOffset = offset + line.replace(/\r$/, '').length
+    }
+    offset += line.length + 1
+  }
+  if (startLine === -1 || endOffset === -1) return null
+  return source.substring(startOffset, endOffset)
+}
 
 export function getCodingChallengeFromFileContent (source: string, challengeKey: string) {
-  const key = escapeRegExp(challengeKey)
-  const snippets = new RegExp(`[/#]{0,2} vuln-code-snippet start.*${key}([^])*vuln-code-snippet end.*${key}`).exec(source)
-  if (snippets == null) {
+  const key = challengeKey
+  const block = extractSnippetBlock(source, key)
+  if (block == null) {
     throw new BrokenBoundary('Broken code snippet boundaries for: ' + challengeKey)
   }
+  const snippets = [block]
   let snippet = snippets[0] // TODO Currently only a single code snippet is supported
   snippet = snippet.replace(/\s?[/#]{0,2} vuln-code-snippet start.*[\r\n]{0,2}/g, '')
   snippet = snippet.replace(/\s?[/#]{0,2} vuln-code-snippet end.*/g, '')
@@ -79,9 +112,9 @@ export function getCodingChallengeFromFileContent (source: string, challengeKey:
   const vulnLines = []
   const neutralLines = []
   for (let i = 0; i < lines.length; i++) {
-    if (new RegExp(`vuln-code-snippet vuln-line.*${key}`).exec(lines[i]) != null) {
+    if (markerWithKey(lines[i], 'vuln-code-snippet vuln-line', key)) {
       vulnLines.push(i + 1)
-    } else if (new RegExp(`vuln-code-snippet neutral-line.*${key}`).exec(lines[i]) != null) {
+    } else if (markerWithKey(lines[i], 'vuln-code-snippet neutral-line', key)) {
       neutralLines.push(i + 1)
     }
   }

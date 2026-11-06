@@ -112,7 +112,7 @@ const provider = createOpenAICompatible({
 })
 
 function sseJson (value: unknown): string {
-  return JSON.stringify(value).replace(/</g, '\\u003c').replace(/>/g, '\\u003e')
+  return JSON.stringify(value).replace(/&/g, '\\u0026').replace(/</g, '\\u003c').replace(/>/g, '\\u003e')
 }
 
 export function chat () {
@@ -150,7 +150,7 @@ export function chat () {
         }),
         execute: async ({ id }) => {
           const productId = Number(id)
-          return await db.reviewsCollection.find({ $where: 'this.product == ' + productId }) as Review[]
+          return await db.reviewsCollection.find({ product: Number.isFinite(productId) ? productId : -1 }) as Review[]
         }
       }),
 

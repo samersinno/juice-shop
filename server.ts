@@ -136,7 +136,7 @@ const errorhandler = require('errorhandler')
 
 const startTime = Date.now()
 
-const swaggerDocument = yaml.load(fs.readFileSync('./swagger.yml', 'utf8'), { schema: yaml.JSON_SCHEMA })
+const swaggerDocument = yaml.load(fs.readFileSync('./swagger.yml', 'utf8'), { schema: yaml.CORE_SCHEMA, json: true })
 
 const appName = config.get<string>('application.customMetricsPrefix')
 const startupGauge = new Prometheus.Gauge({
@@ -179,7 +179,12 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.use(compression())
 
   /* CORS restricted to configured origin(s) */
-  const corsOptions = { origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : false }
+  const allowedOrigins = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',').map(o => o.trim()).filter(o => o !== '' && o !== '*') : []
+  const corsOptions = {
+    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+      callback(null, origin !== undefined && allowedOrigins.includes(origin))
+    }
+  }
   app.options('*', cors(corsOptions))
   app.use(cors(corsOptions))
 
@@ -270,11 +275,13 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.use('/infrastructure', verify.accessControlChallenges())
   app.use('/infrastructure', (req: Request, res: Response, next: NextFunction) => {
     const filePath = path.resolve('infrastructure', path.normalize(req.path).replace(/^[\\/]+/, ''))
-    if (!filePath.startsWith(path.resolve('infrastructure') + path.sep) || filePath.endsWith('README.md')) {
+    const infraRoot = path.resolve('infrastructure')
+    const relToRoot = path.relative(infraRoot, filePath)
+    if (relToRoot === '' || relToRoot.startsWith('..') || path.isAbsolute(relToRoot) || filePath.endsWith('README.md')) {
       return res.status(403).end()
     }
     if (filePath.endsWith('.tf') || filePath.endsWith('.yml') || filePath.endsWith('Dockerfile')) {
-      fs.readFile(filePath, 'utf8', (err, data) => {
+      fs.readFile(path.join(infraRoot, relToRoot), 'utf8', (err, data) => {
         if (err) return next()
         const cleaned = data.split('\n').filter(line => !line.trim().match(/^#\s*vuln-code-snippet\s/)).map(line => line.replace(/\s*#\s*vuln-code-snippet\s.*$/, '')).join('\n')
         res.type('text/plain').send(cleaned)

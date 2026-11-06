@@ -59,7 +59,12 @@ const archiveName = `${pkg.name}-${pkg.version}` +
   (osName ? `_${osName}` : '') +
   (cpuArch ? `_${cpuArch}` : '') +
   ext
-const archivePath = path.join('dist', archiveName)
+const distDir = path.resolve('dist')
+const archivePath = path.resolve(distDir, path.basename(archiveName.replace(/[^\w.@+-]/g, '_')))
+if (path.dirname(archivePath) !== distDir) {
+  console.error('Invalid archive name')
+  process.exit(1)
+}
 const prefix = `juice-shop_${pkg.version}`
 
 await fs.mkdir('dist', { recursive: true })
@@ -115,7 +120,7 @@ console.log(`Created ${archivePath}`)
 // Generate MD5 checksums
 for (const file of await fs.readdir('dist')) {
   if (file.endsWith('.md5')) continue
-  const filePath = path.join('dist', file)
+  const filePath = path.resolve(distDir, path.basename(file))
   if (!(await fs.stat(filePath)).isFile()) continue
   const content = await fs.readFile(filePath)
   const hash = crypto.createHash('md5').update(content).digest('hex')

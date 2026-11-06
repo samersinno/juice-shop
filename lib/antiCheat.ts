@@ -193,11 +193,11 @@ function loadSourceFile (relativePath: string): string {
     return sourceFileCache.get(relativePath)!
   }
   try {
-    const resolved = path.resolve(relativePath)
-    if (!resolved.startsWith(process.cwd() + path.sep)) {
+    const relative = path.relative(process.cwd(), path.resolve(relativePath))
+    if (relative === '' || relative.startsWith('..') || path.isAbsolute(relative)) {
       return ''
     }
-    const content = fs.readFileSync(resolved, 'utf8')
+    const content = fs.readFileSync(path.join(process.cwd(), relative), 'utf8')
     sourceFileCache.set(relativePath, content)
     return content
   } catch {
