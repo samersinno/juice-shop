@@ -21,9 +21,10 @@ export function dataExport () {
         const email = loggedInUser.data.email
         const updatedEmail = email.replace(/[aeiou]/gi, '*')
 
+        const userId = String(req.body.UserId)
         let memories, orders, reviews
         try {
-          memories = await MemoryModel.findAll({ where: { UserId: String(req.body.UserId) } })
+          memories = await MemoryModel.findAll({ where: { UserId: userId } })
         } catch (error) {
           next(error)
           return

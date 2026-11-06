@@ -88,11 +88,11 @@ resource "aws_security_group" "alb" {
   }
 
   egress {
-    description = "Outbound to anywhere"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+    description     = "Outbound to ECS tasks"
+    from_port       = 3000
+    to_port         = 3000
+    protocol        = "tcp"
+    security_groups = [aws_security_group.ecs.id]
   }
 
   tags = {
@@ -116,11 +116,19 @@ resource "aws_security_group" "ecs" {
   }
 
   egress {
-    description = "Outbound to anywhere"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
+    description = "HTTPS outbound (ECR, CloudWatch)"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    description = "NFS to EFS"
+    from_port   = 2049
+    to_port     = 2049
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
   }
 
   tags = {
@@ -253,11 +261,11 @@ resource "aws_security_group" "efs" {
   }
 
   egress {
-    description = "Outbound to anywhere"
+    description = "Outbound within VPC only"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = [var.vpc_cidr]
   }
 
   tags = {

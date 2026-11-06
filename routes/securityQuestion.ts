@@ -19,7 +19,7 @@ export function securityQuestion () {
       const answer = await SecurityAnswerModel.findOne({
         include: [{
           model: UserModel,
-          where: { email: email }
+          where: { email: String(email) }
         }]
       })
       if (answer != null) {

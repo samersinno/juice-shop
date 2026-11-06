@@ -14,6 +14,10 @@ resource "aws_vpc" "main" {
   }
 }
 
+resource "aws_default_security_group" "default" {
+  vpc_id = aws_vpc.main.id
+}
+
 resource "aws_subnet" "public" {
   count                   = length(var.public_subnet_cidrs)
   vpc_id                  = aws_vpc.main.id
@@ -65,6 +69,7 @@ resource "aws_security_group" "alb" {
   vpc_id      = aws_vpc.main.id
 
   ingress {
+    description = "ALB ingress traffic"
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
@@ -72,6 +77,7 @@ resource "aws_security_group" "alb" {
   }
 
   ingress {
+    description = "ALB ingress traffic"
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
@@ -79,10 +85,11 @@ resource "aws_security_group" "alb" {
   }
 
   egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+    description = "ALB egress traffic"
+    from_port   = 3000
+    to_port     = 3000
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
   }
 
   tags = {
@@ -98,6 +105,7 @@ resource "aws_security_group" "ecs" {
   vpc_id      = aws_vpc.main.id
 
   ingress {
+    description = "ECS ingress traffic"
     from_port       = 3000
     to_port         = 3000
     protocol        = "tcp"
@@ -105,9 +113,10 @@ resource "aws_security_group" "ecs" {
   }
 
   egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
+    description = "ECS egress traffic"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
@@ -232,6 +241,7 @@ resource "aws_security_group" "efs" {
   vpc_id      = aws_vpc.main.id
 
   ingress {
+    description = "EFS ingress traffic"
     from_port       = 2049
     to_port         = 2049
     protocol        = "tcp"
@@ -239,10 +249,11 @@ resource "aws_security_group" "efs" {
   }
 
   egress {
+    description = "EFS egress traffic"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = [var.vpc_cidr]
   }
 
   tags = {

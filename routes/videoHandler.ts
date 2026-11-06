@@ -16,7 +16,11 @@ import * as utils from '../lib/utils'
 
 const entities = new Entities()
 const VIDEO_DIR = path.resolve('frontend/dist/frontend/assets/public/videos')
-const videoFile = (name: string) => path.join(VIDEO_DIR, path.basename(name))
+const videoFile = (name: string) => {
+  const resolved = path.resolve(VIDEO_DIR, path.basename(name))
+  if (path.dirname(resolved) !== VIDEO_DIR) throw new Error('Invalid file name')
+  return resolved
+}
 
 export const getVideo = () => {
   return (req: Request, res: Response) => {

@@ -22,6 +22,9 @@ export const readFixes = (key: string) => {
   if (CodeFixes[key]) {
     return CodeFixes[key]
   }
+  if (!/^[\w-]+$/.test(key)) {
+    return { fixes: [], correct: -1 }
+  }
   const files = fs.readdirSync(FixesDir)
   const fixes: string[] = []
   let correct: number = -1
@@ -69,7 +72,7 @@ export const serveCodeFixes = () => (req: Request<FixesRequestParams, Record<str
 }
 
 export const checkCorrectFix = () => async (req: Request<Record<string, unknown>, Record<string, unknown>, VerdictRequestBody>, res: Response, next: NextFunction) => {
-  const key = req.body.key
+  const key = String(req.body.key)
   const selectedFix = req.body.selectedFix
   const fixData = readFixes(key)
   if (fixData.fixes.length === 0) {
@@ -80,6 +83,7 @@ export const checkCorrectFix = () => async (req: Request<Record<string, unknown>
     let explanation
     const infoFile = path.join(path.resolve(FixesDir), path.basename(String(key)) + '.info.yml')
     if (path.dirname(infoFile) === path.resolve(FixesDir) && fs.existsSync(infoFile)) {
+      // key is validated by readFixes (word characters only), infoFile is confined to FixesDir
       const codingChallengeInfos: any = yaml.load(fs.readFileSync(infoFile, 'utf8'), { schema: yaml.JSON_SCHEMA })
       const selectedFixInfo = codingChallengeInfos?.fixes.find(({ id }: { id: number }) => id === selectedFix + 1)
       if (selectedFixInfo?.explanation) explanation = res.__(selectedFixInfo.explanation)

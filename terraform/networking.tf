@@ -1,3 +1,9 @@
+variable "tls_private_key" {
+  description = "PEM private key for the ALB TLS certificate"
+  type        = string
+  sensitive   = true
+}
+
 # vuln-code-snippet start iacLeakedKeyChallenge
 data "aws_availability_zones" "available" {
   state = "available"
@@ -137,6 +143,7 @@ resource "aws_lb" "juice_shop" {
   internal           = false
   load_balancer_type = "application"
   drop_invalid_header_fields = true
+  enable_deletion_protection = true
   security_groups    = [aws_security_group.alb.id]
   subnets            = aws_subnet.public[*].id
 
@@ -174,15 +181,20 @@ resource "aws_lb_listener" "http" {
   protocol          = "HTTP"
 
   default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.juice_shop.arn
+    type = "redirect"
+
+    redirect {
+      port        = "443"
+      protocol    = "HTTPS"
+      status_code = "HTTP_301"
+    }
   }
 }
 
 resource "aws_iam_server_certificate" "juice_shop_tls" {
   name             = "${var.project_name}-tls-cert"
   certificate_body = file("${path.module}/certs/server.crt")
-  private_key      = file("${path.module}/certs/server.key") # vuln-code-snippet vuln-line iacLeakedKeyChallenge
+  private_key      = var.tls_private_key # vuln-code-snippet vuln-line iacLeakedKeyChallenge
 
   lifecycle {
     create_before_destroy = true
@@ -262,9 +274,15 @@ resource "aws_security_group" "efs" {
   }
 }
 
+resource "aws_kms_key" "data" {
+  description         = "${var.project_name} data encryption key"
+  enable_key_rotation = true
+}
+
 resource "aws_efs_file_system" "juice_shop_data" {
   creation_token = "${var.project_name}-sqlite-data"
-  encrypted      = var.efs_encrypted
+  encrypted      = true
+  kms_key_id     = aws_kms_key.data.arn
 
   performance_mode = "generalPurpose"
   throughput_mode  = "bursting"

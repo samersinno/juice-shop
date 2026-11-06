@@ -35,7 +35,7 @@ export function resetPassword () {
       const data = await SecurityAnswerModel.findOne({
         include: [{
           model: UserModel,
-          where: { email }
+          where: { email: String(email) }
         }]
       })
       if ((data != null) && security.hmac(answer) === data.answer) {

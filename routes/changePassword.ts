@@ -26,13 +26,13 @@ export function changePassword () {
     if (!newPassword || newPassword === 'undefined') {
       res.status(401).send(res.__('Password cannot be empty.'))
       return
-    } else if (newPassword !== repeatPassword) {
+    } else if (!safeEqual(newPassword, String(repeatPassword))) {
       res.status(401).send(res.__('New and repeated password do not match.'))
       return
     }
 
     const token = headers.authorization ? headers.authorization.substr('Bearer='.length) : null
-    if (token === null) {
+    if (!token) {
       next(new Error('Blocked illegal activity by ' + connection.remoteAddress))
       return
     }

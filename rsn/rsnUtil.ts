@@ -6,7 +6,7 @@ import yaml from 'js-yaml'
 import { retrieveCodeSnippet } from '../routes/vulnCodeSnippet'
 
 const fixesPath = 'data/static/codefixes'
-const cacheFile = 'rsn/cache.json'
+const cacheFile = path.resolve('rsn/cache.json')
 
 type CacheData = Record<string, {
   added: number[]
@@ -40,7 +40,7 @@ function safeFixPath (name: string): string {
 }
 
 function readFiles () {
-  const files = fs.readdirSync(fixesPath)
+  const files = fs.readdirSync(path.resolve(fixesPath))
   const keys = files.filter((file: string) => !file.endsWith('.info.yml') && !file.endsWith('.editorconfig'))
   return keys
 }
@@ -142,7 +142,7 @@ function loadChallengeInfo (challengeName: string): ChallengeInfo | null {
   const infoPath = safeFixPath(`${challengeName}.info.yml`)
   if (!fs.existsSync(infoPath)) return null
   const content = fs.readFileSync(infoPath, 'utf-8')
-  return yaml.load(content, { schema: yaml.JSON_SCHEMA }) as ChallengeInfo
+  return yaml.load(content, { schema: yaml.JSON_SCHEMA, json: true }) as ChallengeInfo
 }
 
 function getFixExplanation (file: string, info: ChallengeInfo | null): string | null {
