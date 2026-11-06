@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import path from 'node:path'
 import yaml from 'js-yaml'
 import { type NextFunction, type Request, type Response } from 'express'
 
@@ -26,7 +27,7 @@ export const readFixes = (key: string) => {
   let correct: number = -1
   for (const file of files) {
     if (file.startsWith(`${key}_`)) {
-      const fix = fs.readFileSync(`${FixesDir}/${file}`).toString()
+      const fix = fs.readFileSync(path.join(FixesDir, path.basename(file))).toString()
       const metadata = file.split('_')
       const number = metadata[1]
       fixes.push(fix)
@@ -77,8 +78,9 @@ export const checkCorrectFix = () => async (req: Request<Record<string, unknown>
     })
   } else {
     let explanation
-    if (fs.existsSync('./data/static/codefixes/' + key + '.info.yml')) {
-      const codingChallengeInfos = yaml.load(fs.readFileSync('./data/static/codefixes/' + key + '.info.yml', 'utf8'))
+    const infoFile = path.join(path.resolve(FixesDir), path.basename(String(key)) + '.info.yml')
+    if (path.dirname(infoFile) === path.resolve(FixesDir) && fs.existsSync(infoFile)) {
+      const codingChallengeInfos: any = yaml.load(fs.readFileSync(infoFile, 'utf8'), { schema: yaml.JSON_SCHEMA })
       const selectedFixInfo = codingChallengeInfos?.fixes.find(({ id }: { id: number }) => id === selectedFix + 1)
       if (selectedFixInfo?.explanation) explanation = res.__(selectedFixInfo.explanation)
     }

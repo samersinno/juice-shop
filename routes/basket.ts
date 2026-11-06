@@ -15,7 +15,7 @@ import { challenges } from '../data/datacache'
 export function retrieveBasket () {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const id = req.params.id
+      const id = String(req.params.id)
       const basket = await BasketModel.findOne({ where: { id }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
       /* jshint eqeqeq:false */
       challengeUtils.solveIf(challenges.basketAccessChallenge, () => {

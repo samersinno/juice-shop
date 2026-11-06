@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import path from 'node:path'
 import { diffLines, structuredPatch } from 'diff'
 import yaml from 'js-yaml'
 
@@ -27,6 +28,15 @@ interface ChallengeDiff {
   challengeName: string
   explanation: string | null
   lines: DiffLine[]
+}
+
+function safeFixPath (name: string): string {
+  const base = path.resolve(fixesPath)
+  const full = path.resolve(base, name)
+  if (!full.startsWith(base + path.sep)) {
+    throw new Error('Invalid file name: ' + name)
+  }
+  return full
 }
 
 function readFiles () {
@@ -63,7 +73,7 @@ const computeDiffs = async (keys: string[]) => {
     try {
       const snippet = await retrieveCodeSnippet(val.split('_')[0])
       if (snippet == null) continue
-      const fileData = fs.readFileSync(fixesPath + '/' + val).toString()
+      const fileData = fs.readFileSync(safeFixPath(val)).toString()
       const diff = diffLines(filterString(fileData), filterString(snippet.snippet))
       let line = 0
       for (const part of diff) {
@@ -129,10 +139,10 @@ function findChangedFiles (current: CacheData, cached: CacheData): string[] {
 }
 
 function loadChallengeInfo (challengeName: string): ChallengeInfo | null {
-  const infoPath = `${fixesPath}/${challengeName}.info.yml`
+  const infoPath = safeFixPath(`${challengeName}.info.yml`)
   if (!fs.existsSync(infoPath)) return null
   const content = fs.readFileSync(infoPath, 'utf-8')
-  return yaml.load(content) as ChallengeInfo
+  return yaml.load(content, { schema: yaml.JSON_SCHEMA }) as ChallengeInfo
 }
 
 function getFixExplanation (file: string, info: ChallengeInfo | null): string | null {
@@ -152,7 +162,7 @@ async function computeChallengeDiff (file: string): Promise<ChallengeDiff | null
   const snippet = await retrieveCodeSnippet(challengeName)
   if (!snippet) return null
 
-  const fileData = fs.readFileSync(fixesPath + '/' + file).toString()
+  const fileData = fs.readFileSync(safeFixPath(file)).toString()
   const patch = structuredPatch(file, file, filterString(snippet.snippet), filterString(fileData))
 
   const lines: DiffLine[] = []

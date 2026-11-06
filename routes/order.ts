@@ -38,7 +38,7 @@ export function placeOrder () {
           const customer = security.authenticatedUsers.from(req)
           const email = customer ? customer.data ? customer.data.email : '' : ''
           const orderId = security.hash(email).slice(0, 4) + '-' + utils.randomHexString(16)
-          const pdfFile = `order_${orderId}.pdf`
+          const pdfFile = path.basename(`order_${orderId}.pdf`)
           const { default: PDFDocument } = await import('pdfkit')
           const doc = new PDFDocument()
           const date = new Date().toJSON().slice(0, 10)
@@ -163,9 +163,9 @@ export function placeOrder () {
 
           db.ordersCollection.insert({
             promotionalAmount: discountAmount,
-            paymentId: req.body.orderDetails ? req.body.orderDetails.paymentId : null,
-            addressId: req.body.orderDetails ? req.body.orderDetails.addressId : null,
-            orderId,
+            paymentId: req.body.orderDetails ? String(req.body.orderDetails.paymentId) : null,
+            addressId: req.body.orderDetails ? String(req.body.orderDetails.addressId) : null,
+            orderId: String(orderId),
             delivered: false,
             email: (email ? email.replace(/[aeiou]/gi, '*') : undefined),
             totalPrice,

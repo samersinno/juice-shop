@@ -3,11 +3,18 @@
  * SPDX-License-Identifier: MIT
  */
 
+import crypto from 'node:crypto'
 import { type Request, type Response, type NextFunction } from 'express'
 import * as challengeUtils from '../lib/challengeUtils'
 import { challenges } from '../data/datacache'
 import { UserModel } from '../models/user'
 import * as security from '../lib/insecurity'
+
+function safeEqual (a: string, b: string): boolean {
+  const ha = crypto.createHash('sha256').update(String(a)).digest()
+  const hb = crypto.createHash('sha256').update(String(b)).digest()
+  return crypto.timingSafeEqual(ha, hb)
+}
 
 export function changePassword () {
   return async ({ query, headers, connection }: Request, res: Response, next: NextFunction) => {
@@ -36,7 +43,7 @@ export function changePassword () {
       return
     }
 
-    if (currentPassword && security.hash(currentPassword) !== loggedInUser.data.password) {
+    if (currentPassword && !safeEqual(security.hash(currentPassword), loggedInUser.data.password)) {
       res.status(401).send(res.__('Current password is not correct.'))
       return
     }
@@ -51,7 +58,7 @@ export function changePassword () {
       await user.update({ password: newPasswordInString })
       challengeUtils.solveIf(
         challenges.changePasswordBenderChallenge,
-        () => user.id === 3 && !currentPassword && user.password === security.hash('slurmCl4ssic')
+        () => user.id === 3 && !currentPassword && safeEqual(user.password, security.hash('slurmCl4ssic'))
       )
       res.json({ user })
     } catch (error) {

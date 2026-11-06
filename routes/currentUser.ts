@@ -19,8 +19,8 @@ export function retrieveLoggedInUser () {
 
         // Parse the fields parameter into an array, splitting by comma.
         // If not provided, both these variables will be undefined.
-        const fieldsParam = req.query?.fields as string | undefined
-        const requestedFields = fieldsParam ? fieldsParam.split(',').map(f => f.trim()) : []
+        const fieldsParam = typeof req.query?.fields === 'string' ? req.query.fields : undefined
+        const requestedFields = fieldsParam ? fieldsParam.split(',').slice(0, 20).map(f => f.trim()) : []
 
         let baseUser: any = {}
 

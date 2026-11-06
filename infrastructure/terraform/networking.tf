@@ -1,4 +1,10 @@
 # vuln-code-snippet start iacLeakedKeyChallenge
+variable "tls_private_key" {
+  description = "PEM private key for the ALB TLS certificate"
+  type        = string
+  sensitive   = true
+}
+
 data "aws_availability_zones" "available" {
   state = "available"
 }
@@ -20,7 +26,7 @@ resource "aws_subnet" "public" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = var.public_subnet_cidrs[count.index]
   availability_zone       = data.aws_availability_zones.available.names[count.index]
-  map_public_ip_on_launch = true
+  map_public_ip_on_launch = false
 
   tags = {
     Name        = "${var.project_name}-public-${count.index}"
@@ -66,6 +72,7 @@ resource "aws_security_group" "alb" {
   vpc_id      = aws_vpc.main.id
 
   ingress {
+    description = "HTTP from internet"
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
@@ -73,6 +80,7 @@ resource "aws_security_group" "alb" {
   }
 
   ingress {
+    description = "HTTPS from internet"
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
@@ -80,6 +88,7 @@ resource "aws_security_group" "alb" {
   }
 
   egress {
+    description = "Outbound to anywhere"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
@@ -99,6 +108,7 @@ resource "aws_security_group" "ecs" {
   vpc_id      = aws_vpc.main.id
 
   ingress {
+    description = "App port from ALB"
     from_port       = 3000
     to_port         = 3000
     protocol        = "tcp"
@@ -106,6 +116,7 @@ resource "aws_security_group" "ecs" {
   }
 
   egress {
+    description = "Outbound to anywhere"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
@@ -125,6 +136,9 @@ resource "aws_lb" "juice_shop" {
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb.id]
   subnets            = aws_subnet.public[*].id
+
+  drop_invalid_header_fields = true
+  enable_deletion_protection = true
 
   tags = {
     Project     = var.project_name
@@ -160,15 +174,20 @@ resource "aws_lb_listener" "http" {
   protocol          = "HTTP"
 
   default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.juice_shop.arn
+    type = "redirect"
+
+    redirect {
+      port        = "443"
+      protocol    = "HTTPS"
+      status_code = "HTTP_301"
+    }
   }
 }
 
 resource "aws_iam_server_certificate" "juice_shop_tls" {
   name             = "${var.project_name}-tls-cert"
   certificate_body = file("${path.module}/certs/server.crt")
-  private_key      = "-----BEGIN RSA PRIVATE KEY-----\nMIICXAIBAAKBgQDNwqLEe9wgTXCbC7+RPdDbBbeqjdbs4kOPOIGzqLpXvJXlxxW8\niMz0EaM4BKUqYsIa+ndv3NAn2RxCd5ubVdJJcX43zO6Ko0TFEZx/65gY3BE0O6sy\nCEmUP4qbSd6exou/F+WTISzbQ5FBVPVmhnYhG/kpwt/cIxK5iUn5hm+4tQIDAQAB\nAoGBAI+8xiPoOrA+KMnG/T4jJsG6TsHQcDHvJi7o1IKC/hnIXha0atTX5AUkRRce\n95qSfvKFweXdJXSQ0JMGJyfuXgU6dI0TcseFRfewXAa/ssxAC+iUVR6KUMh1PE2w\nXLitfeI6JLvVtrBYswm2I7CtY0q8n5AGimHWVXJPLfGV7m0BAkEA+fqFt2LXbLty\ng6wZyxMA/cnmt5Nt3U2dAu77MzFJvibANUNHE4HPLZxjGNXN+a6m0K6TD4kDdh5H\nfUYLWWRBYQJBANK3carmulBwqzcDBjsJ0YrIONBpCAsXxk8idXb8jL9aNIg15Wum\nm2enqqObahDHB5jnGOLmbasizvSVqypfM9UCQCQl8xIqy+YgURXzXCN+kwUgHinr\nutZms87Jyi+D8Br8NY0+Nlf+zHvXAomD2W5CsEK7C+8SLBr3k/TsnRWHJuECQHFE\n9RA2OP8WoaLPuGCyFXaxzICThSRZYluVnWkZtxsBhW2W8z1b8PvWUE7kMy7Tnkze\nJS2LSnaNHoyxi7IaPQUCQCwWU4U+v4lD7uYBw00Ga/xt+7+UqFPlPVdz1yyr4q24\nZxaw0LgmuEvgU5dycq8N7JxjTubX0MIRR+G9fmDBBl8=\n-----END RSA PRIVATE KEY-----" # vuln-code-snippet vuln-line iacLeakedKeyChallenge
+  private_key      = var.tls_private_key # vuln-code-snippet vuln-line iacLeakedKeyChallenge
 
   lifecycle {
     create_before_destroy = true
@@ -226,6 +245,7 @@ resource "aws_security_group" "efs" {
   vpc_id      = aws_vpc.main.id
 
   ingress {
+    description = "NFS from ECS tasks"
     from_port       = 2049
     to_port         = 2049
     protocol        = "tcp"
@@ -233,6 +253,7 @@ resource "aws_security_group" "efs" {
   }
 
   egress {
+    description = "Outbound to anywhere"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
@@ -246,9 +267,15 @@ resource "aws_security_group" "efs" {
   }
 }
 
+resource "aws_kms_key" "data" {
+  description         = "${var.project_name} data encryption key"
+  enable_key_rotation = true
+}
+
 resource "aws_efs_file_system" "juice_shop_data" {
   creation_token = "${var.project_name}-sqlite-data"
-  encrypted      = var.efs_encrypted
+  encrypted      = true
+  kms_key_id     = aws_kms_key.data.arn
 
   performance_mode = "generalPurpose"
   throughput_mode  = "bursting"

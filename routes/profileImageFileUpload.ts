@@ -4,6 +4,7 @@
  */
 
 import fs from 'node:fs/promises'
+import path from 'node:path'
 import { type Request, type Response, type NextFunction } from 'express'
 import fileType from 'file-type'
 
@@ -37,7 +38,7 @@ export function profileImageFileUpload () {
       return
     }
 
-    const filePath = `frontend/dist/frontend/assets/public/images/uploads/${loggedInUser.data.id}.${uploadedFileType.ext}`
+    const filePath = path.join('frontend/dist/frontend/assets/public/images/uploads', path.basename(`${loggedInUser.data.id}.${uploadedFileType.ext}`))
     try {
       await fs.writeFile(filePath, buffer)
     } catch (err) {
