@@ -3,7 +3,6 @@
  * SPDX-License-Identifier: MIT
  */
 import express, { type NextFunction, type Request, type Response } from 'express'
-import path from 'node:path'
 import config from 'config'
 import { themes } from '../views/themes/themes'
 import * as utils from '../lib/utils'
@@ -12,14 +11,17 @@ import { AllHtmlEntities as Entities } from 'html-entities'
 import { SecurityQuestionModel } from '../models/securityQuestion'
 import { PrivacyRequestModel } from '../models/privacyRequests'
 import { SecurityAnswerModel } from '../models/securityAnswer'
-import * as challengeUtils from '../lib/challengeUtils'
-import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
 
 const entities = new Entities()
 
 const router = express.Router()
+
+// Only fixed template names are ever rendered; the model never selects a layout or view.
+function renderView (res: Response, view: 'dataErasureForm' | 'dataErasureResult', model: Record<string, string>): void {
+  res.render(view, model)
+}
 
 router.get('/', (req: Request, res: Response, next: NextFunction) => {
   void (async () => {
@@ -47,9 +49,9 @@ router.get('/', (req: Request, res: Response, next: NextFunction) => {
 
       const themeKey = config.get<string>('application.theme') as keyof typeof themes
       const theme = themes[themeKey] || themes['bluegrey-lightgreen']
-      res.render('dataErasureForm', {
-        userEmail: email,
-        securityQuestion: question.question,
+      renderView(res, 'dataErasureForm', {
+        userEmail: String(email),
+        securityQuestion: String(question.question),
         _title_: entities.encode(config.get<string>('application.name')),
         _favicon_: utils.extractFilename(config.get('application.favicon')),
         _bgColor_: theme.bgColor,
@@ -100,31 +102,7 @@ router.post('/', (req: Request<Record<string, unknown>, Record<string, unknown>,
         _logo_: utils.extractFilename(config.get('application.logo'))
       }
 
-      if (req.body.layout && utils.isChallengeEnabled(challenges.lfrChallenge)) {
-        const filePath: string = path.resolve(String(req.body.layout)).toLowerCase()
-        const isForbiddenFile: boolean = (filePath.includes('ftp') || filePath.includes('ctf.key') || filePath.includes('encryptionkeys'))
-        if (!isForbiddenFile) {
-          res.render('dataErasureResult', {
-            ...req.body,
-            ...themeVars
-          }, (error, html) => {
-            if (!html || error) {
-              next(new Error(error.message))
-            } else {
-              const sendlfrResponse: string = html.slice(0, 100) + '......'
-              res.send(sendlfrResponse)
-              challengeUtils.solveIf(challenges.lfrChallenge, () => { return true })
-            }
-          })
-        } else {
-          next(new Error('File access not allowed'))
-        }
-      } else {
-        res.render('dataErasureResult', {
-          ...req.body,
-          ...themeVars
-        })
-      }
+      renderView(res, 'dataErasureResult', themeVars)
     } catch (error) {
       next(error)
     }

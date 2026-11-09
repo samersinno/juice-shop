@@ -5,6 +5,7 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
+import dns from 'node:dns/promises'
 import { Readable } from 'node:stream'
 import { finished } from 'node:stream/promises'
 import { type Request, type Response, type NextFunction } from 'express'
@@ -26,6 +27,10 @@ function isPrivateHost (hostname: string): boolean {
   return false
 }
 
+async function fetchNoRedirect (validatedUrl: string) {
+  return await fetch(validatedUrl, { redirect: 'error' })
+}
+
 export function profileImageUrlUpload () {
   return async (req: Request, res: Response, next: NextFunction) => {
     if (req.body.imageUrl !== undefined) {
@@ -38,7 +43,12 @@ export function profileImageUrlUpload () {
           if (!['http:', 'https:'].includes(parsedUrl.protocol) || isPrivateHost(parsedUrl.hostname)) {
             throw new Error('url is not allowed')
           }
-          const response = await fetch(parsedUrl.toString(), { redirect: 'error' })
+          const addresses = await dns.lookup(parsedUrl.hostname, { all: true })
+          if (addresses.some(a => isPrivateHost(a.address))) {
+            throw new Error('url is not allowed')
+          }
+          const safeUrl = new URL(parsedUrl.protocol + '//' + parsedUrl.host + parsedUrl.pathname + parsedUrl.search)
+          const response = await fetchNoRedirect(safeUrl.href)
           if (!response.ok || !response.body) {
             throw new Error('url returned a non-OK status code or an empty body')
           }

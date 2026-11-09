@@ -19,6 +19,11 @@ function favicon () {
   return utils.extractFilename(config.get('application.favicon'))
 }
 
+function sendProfile (res: Response, render: (locals: Record<string, unknown>) => string, user: UserModel) {
+  const html = render({ username: user.username, email: user.email, role: user.role, profileImage: user.profileImage })
+  res.type('html').send(html)
+}
+
 export function getUserProfile () {
   return async (req: Request, res: Response, next: NextFunction) => {
     let template: string
@@ -72,7 +77,7 @@ export function getUserProfile () {
         'Content-Security-Policy': CSP
       })
 
-      res.send(fn(user))
+      sendProfile(res, fn, user)
     } catch (err) {
       next(new Error('Blocked illegal activity by ' + req.socket.remoteAddress))
     }

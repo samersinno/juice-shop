@@ -111,6 +111,10 @@ const provider = createOpenAICompatible({
   baseURL: config.get<string>('application.chatBot.llmApiUrl')
 })
 
+function sseWrite (res: Response, value: unknown): void {
+  res.write('data: ' + sseJson(value) + '\n\n')
+}
+
 function sseJson (value: unknown): string {
   return JSON.stringify(value).replace(/&/g, '\\u0026').replace(/</g, '\\u003c').replace(/>/g, '\\u003e')
 }
@@ -219,7 +223,7 @@ export function chat () {
       for await (const event of result.fullStream) {
         switch (event.type) {
           case 'text-delta':
-            res.write(`data: ${sseJson({ choices: [{ delta: { content: event.text } }] })}\n\n`)
+            sseWrite(res, { choices: [{ delta: { content: event.text } }] })
             break
           case 'tool-call':
             challengeUtils.solveIf(challenges.aiDebuggingChallenge, () => {
@@ -229,7 +233,7 @@ export function chat () {
               return req.cookies.show_tool_calls === 'true' && role !== roles.admin
             })
             metricToolCalls.labels({ tool: event.toolName }).inc()
-            res.write(`data: ${sseJson({
+            sseWrite(res, {
               choices: [{
                 delta: {
                   tool_calls: [{
@@ -239,10 +243,10 @@ export function chat () {
                   }]
                 }
               }]
-            })}\n\n`)
+            })
             break
           case 'finish':
-            res.write(`data: ${sseJson({ choices: [{ finish_reason: event.finishReason }] })}\n\n`)
+            sseWrite(res, { choices: [{ finish_reason: event.finishReason }] })
             try {
               if (event.totalUsage.inputTokens) {
                 metricInputTokensTotal.inc(Math.max(0, event.totalUsage.inputTokens))
@@ -260,7 +264,7 @@ export function chat () {
             }
             break
           case 'error':
-            res.write(`data: ${sseJson({ error: `LLM error: ${event.error as string}` })}\n\n`)
+            sseWrite(res, { error: `LLM error: ${event.error as string}` })
             break
         }
       }
@@ -269,7 +273,7 @@ export function chat () {
       res.end()
     } catch (error) {
       logger.warn('Chatbot connection error: ' + summarizeLlmError(error))
-      res.write(`data: ${sseJson({ error: 'LLM API is not reachable' })}\n\n`)
+      sseWrite(res, { error: 'LLM API is not reachable' })
       res.write('data: [DONE]\n\n')
       res.end()
     }
