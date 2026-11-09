@@ -2,7 +2,7 @@ data "aws_availability_zones" "available" {
   state = "available"
 }
 
-resource "aws_vpc" "main" {
+resource "aws_vpc" "main_c3" {
   cidr_block           = var.vpc_cidr
   enable_dns_hostnames = true
   enable_dns_support   = true
@@ -14,13 +14,60 @@ resource "aws_vpc" "main" {
   }
 }
 
+resource "aws_cloudwatch_log_group" "vpc_flow" {
+  name              = "${var.project_name}-vpc-flow-logs"
+  retention_in_days = 365
+}
+
+resource "aws_iam_role" "vpc_flow" {
+  name = "${var.project_name}-vpc-flow-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action    = "sts:AssumeRole"
+        Effect    = "Allow"
+        Principal = { Service = "vpc-flow-logs.amazonaws.com" }
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "vpc_flow" {
+  name = "${var.project_name}-vpc-flow-policy"
+  role = aws_iam_role.vpc_flow.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = [
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "logs:DescribeLogStreams"
+        ]
+        Effect   = "Allow"
+        Resource = "${aws_cloudwatch_log_group.vpc_flow.arn}:*"
+      }
+    ]
+  })
+}
+
+resource "aws_flow_log" "main_c3" {
+  vpc_id          = aws_vpc.main_c3.id
+  traffic_type    = "ALL"
+  iam_role_arn    = aws_iam_role.vpc_flow.arn
+  log_destination = aws_cloudwatch_log_group.vpc_flow.arn
+}
+
 resource "aws_default_security_group" "default" {
-  vpc_id = aws_vpc.main.id
+  vpc_id = aws_vpc.main_c3.id
 }
 
 resource "aws_subnet" "public" {
   count                   = length(var.public_subnet_cidrs)
-  vpc_id                  = aws_vpc.main.id
+  vpc_id                  = aws_vpc.main_c3.id
   cidr_block              = var.public_subnet_cidrs[count.index]
   availability_zone       = data.aws_availability_zones.available.names[count.index]
   map_public_ip_on_launch = false
@@ -33,7 +80,7 @@ resource "aws_subnet" "public" {
 }
 
 resource "aws_internet_gateway" "main" {
-  vpc_id = aws_vpc.main.id
+  vpc_id = aws_vpc.main_c3.id
 
   tags = {
     Name        = "${var.project_name}-igw"
@@ -43,7 +90,7 @@ resource "aws_internet_gateway" "main" {
 }
 
 resource "aws_route_table" "public" {
-  vpc_id = aws_vpc.main.id
+  vpc_id = aws_vpc.main_c3.id
 
   route {
     cidr_block = "0.0.0.0/0"
@@ -66,7 +113,7 @@ resource "aws_route_table_association" "public" {
 resource "aws_security_group" "alb" {
   name        = "${var.project_name}-alb-sg"
   description = "Security group for ALB"
-  vpc_id      = aws_vpc.main.id
+  vpc_id      = aws_vpc.main_c3.id
 
   ingress {
     description = "ALB ingress traffic"
@@ -102,7 +149,7 @@ resource "aws_security_group" "alb" {
 resource "aws_security_group" "ecs" {
   name        = "${var.project_name}-ecs-sg"
   description = "Security group for ECS tasks"
-  vpc_id      = aws_vpc.main.id
+  vpc_id      = aws_vpc.main_c3.id
 
   ingress {
     description = "ECS ingress traffic"
@@ -117,7 +164,7 @@ resource "aws_security_group" "ecs" {
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = [var.vpc_cidr]
   }
 
   tags = {
@@ -129,7 +176,7 @@ resource "aws_security_group" "ecs" {
 
 resource "aws_lb" "juice_shop" {
   name               = "${var.project_name}-alb"
-  internal           = false
+  internal           = true
   drop_invalid_header_fields = true
   enable_deletion_protection = true
   load_balancer_type = "application"
@@ -146,7 +193,7 @@ resource "aws_lb_target_group" "juice_shop" {
   name        = "${var.project_name}-tg"
   port        = 3000
   protocol    = "HTTP"
-  vpc_id      = aws_vpc.main.id
+  vpc_id      = aws_vpc.main_c3.id
   target_type = "ip"
 
   health_check {
@@ -238,7 +285,7 @@ resource "aws_iam_role_policy_attachment" "ecs_execution" {
 resource "aws_security_group" "efs" {
   name        = "${var.project_name}-efs-sg"
   description = "Security group for EFS mount targets"
-  vpc_id      = aws_vpc.main.id
+  vpc_id      = aws_vpc.main_c3.id
 
   ingress {
     description = "EFS ingress traffic"

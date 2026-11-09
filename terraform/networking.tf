@@ -116,11 +116,19 @@ resource "aws_security_group" "ecs" {
   }
 
   egress {
-    description = "HTTPS egress for image pull and AWS APIs"
+    description = "HTTPS to VPC endpoints (ECR, CloudWatch Logs)"
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = [var.vpc_cidr]
+  }
+
+  egress {
+    description     = "HTTPS to S3 gateway endpoint (ECR image layers)"
+    from_port       = 443
+    to_port         = 443
+    protocol        = "tcp"
+    prefix_list_ids = [aws_vpc_endpoint.s3.prefix_list_id]
   }
 
   egress {
@@ -138,9 +146,59 @@ resource "aws_security_group" "ecs" {
   }
 }
 
+resource "aws_security_group" "vpc_endpoints" {
+  name        = "${var.project_name}-vpce-sg"
+  description = "Security group for interface VPC endpoints"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    description     = "HTTPS from ECS tasks"
+    from_port       = 443
+    to_port         = 443
+    protocol        = "tcp"
+    security_groups = [aws_security_group.ecs.id]
+  }
+
+  tags = {
+    Name        = "${var.project_name}-vpce-sg"
+    Project     = var.project_name
+    Environment = var.environment
+  }
+}
+
+resource "aws_vpc_endpoint" "interface" {
+  for_each = toset(["ecr.api", "ecr.dkr", "logs"])
+
+  vpc_id              = aws_vpc.main.id
+  service_name        = "com.amazonaws.${var.aws_region}.${each.value}"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = aws_subnet.public[*].id
+  security_group_ids  = [aws_security_group.vpc_endpoints.id]
+  private_dns_enabled = true
+
+  tags = {
+    Name        = "${var.project_name}-${each.value}-vpce"
+    Project     = var.project_name
+    Environment = var.environment
+  }
+}
+
+resource "aws_vpc_endpoint" "s3" {
+  vpc_id            = aws_vpc.main.id
+  service_name      = "com.amazonaws.${var.aws_region}.s3"
+  vpc_endpoint_type = "Gateway"
+  route_table_ids   = [aws_route_table.public.id]
+
+  tags = {
+    Name        = "${var.project_name}-s3-vpce"
+    Project     = var.project_name
+    Environment = var.environment
+  }
+}
+
 resource "aws_lb" "juice_shop" {
   name               = "${var.project_name}-alb"
-  internal           = false
+  internal           = true
   load_balancer_type = "application"
   drop_invalid_header_fields = true
   enable_deletion_protection = true

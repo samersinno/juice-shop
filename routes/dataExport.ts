@@ -44,6 +44,14 @@ export function dataExport () {
           return
         }
 
+        const memoryList: Array<{ imageUrl: string, caption: string }> = []
+        for (const memory of memories as MemoryModel[]) {
+          memoryList.push({
+            imageUrl: req.protocol + '://' + req.get('host') + '/' + memory.imagePath,
+            caption: memory.caption
+          })
+        }
+
         const userData:
         {
           username?: string
@@ -70,10 +78,7 @@ export function dataExport () {
         {
           username,
           email,
-          memories: memories.map((memory: MemoryModel) => ({
-            imageUrl: req.protocol + '://' + req.get('host') + '/' + memory.imagePath,
-            caption: memory.caption
-          })),
+          memories: memoryList,
           orders: orders.map((order: {
             orderId: string
             totalPrice: number

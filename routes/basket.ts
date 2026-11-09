@@ -12,6 +12,12 @@ import * as utils from '../lib/utils'
 import * as security from '../lib/insecurity'
 import { challenges } from '../data/datacache'
 
+function localizeProductNames (products: ProductModel[], translate: (name: string) => string) {
+  for (const product of products) {
+    product.name = translate(product.name)
+  }
+}
+
 export function retrieveBasket () {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -23,9 +29,7 @@ export function retrieveBasket () {
         return user && id && id !== 'undefined' && id !== 'null' && id !== 'NaN' && user.bid && user?.bid != parseInt(id, 10) // eslint-disable-line eqeqeq
       })
       if (((basket?.Products) != null) && basket.Products.length > 0) {
-        basket.Products.forEach((product) => {
-          product.name = req.__(product.name)
-        })
+        localizeProductNames(basket.Products, (name: string) => req.__(name))
       }
 
       res.json(utils.queryResultToJson(basket))
