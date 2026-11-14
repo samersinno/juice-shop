@@ -24,6 +24,7 @@ resource "aws_vpc" "main" {
 resource "aws_cloudwatch_log_group" "vpc_flow" {
   name              = "/${var.project_name}/vpc-flow-logs"
   retention_in_days = 365
+  kms_key_id        = aws_kms_key.logs.arn
 }
 
 resource "aws_iam_role" "vpc_flow" {
@@ -373,3 +374,36 @@ resource "aws_efs_access_point" "juice_shop_data" {
   }
 }
 # vuln-code-snippet end iacLeakedKeyChallenge
+
+data "aws_caller_identity" "current" {}
+
+resource "aws_kms_key" "logs" {
+  description         = "${var.project_name} CloudWatch logs encryption key"
+  enable_key_rotation = true
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "EnableRootPermissions"
+        Effect    = "Allow"
+        Principal = { AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root" }
+        Action    = "kms:*"
+        Resource  = "*"
+      },
+      {
+        Sid       = "AllowCloudWatchLogs"
+        Effect    = "Allow"
+        Principal = { Service = "logs.${var.aws_region}.amazonaws.com" }
+        Action = [
+          "kms:Encrypt*",
+          "kms:Decrypt*",
+          "kms:ReEncrypt*",
+          "kms:GenerateDataKey*",
+          "kms:Describe*"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}

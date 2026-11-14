@@ -13,10 +13,27 @@ import * as db from '../data/mongodb'
 
 const sleep = async (ms: number) => await new Promise(resolve => setTimeout(resolve, ms))
 
+async function findReviewById (reviewId: string) {
+  return await db.reviewsCollection.findOne({ _id: reviewId })
+}
+
+function countOccurrences (values: string[], value: string) {
+  let count = 0
+  for (const entry of values) {
+    if (entry === value) count++
+  }
+  return count
+}
+
+function reviewIdFrom (body: Record<string, unknown> | undefined) {
+  const candidate = body?.id
+  return typeof candidate === 'string' && /^[\w-]+$/.test(candidate) ? candidate : null
+}
+
 export function likeProductReviews () {
   return async (req: Request, res: Response, next: NextFunction) => {
-    const id = req.body.id
-    if (typeof id !== 'string' || !/^[\w-]+$/.test(id)) {
+    const id = reviewIdFrom(req.body)
+    if (id === null) {
       return res.status(400).json({ error: 'Wrong Params' })
     }
     const user = security.authenticatedUsers.from(req)
@@ -25,7 +42,7 @@ export function likeProductReviews () {
     }
 
     try {
-      const review = await db.reviewsCollection.findOne({ _id: String(id) })
+      const review = await findReviewById(id)
       if (!review) {
         return res.status(404).json({ error: 'Not found' })
       }
@@ -43,11 +60,11 @@ export function likeProductReviews () {
       // Artificial wait for timing attack challenge
       await sleep(150)
       try {
-        const updatedReview: Review = await db.reviewsCollection.findOne({ _id: String(id) })
+        const updatedReview: Review = await findReviewById(id)
         const updatedLikedBy = updatedReview.likedBy
         updatedLikedBy.push(user.data.email)
 
-        const count = updatedLikedBy.filter(email => email === user.data.email).length
+        const count = countOccurrences(updatedLikedBy, user.data.email)
         challengeUtils.solveIf(challenges.timingAttackChallenge, () => count > 2)
 
         const result = await db.reviewsCollection.update(

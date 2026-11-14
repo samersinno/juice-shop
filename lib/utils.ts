@@ -4,7 +4,7 @@
  */
 
 import packageJson from '../package.json'
-import fs from 'node:fs'
+import fs, { writeFileSync } from 'node:fs'
 import path from 'node:path'
 import logger from './logger'
 import config from 'config'
@@ -113,7 +113,7 @@ export const downloadToFile = async (url: string, dest: string) => {
     if (relativeDest === '' || relativeDest.startsWith('..') || path.isAbsolute(relativeDest)) {
       throw new Error('Destination outside of working directory')
     }
-    fs.writeFileSync(path.join(process.cwd(), relativeDest), data)
+    writeFileSync(path.join(process.cwd(), relativeDest), data)
   } catch (err) {
     logger.warn('Failed to download ' + url + ' (' + getErrorMessage(err) + ')')
   }

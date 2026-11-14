@@ -5,6 +5,7 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
+import * as safeFs from '../lib/safeFs'
 import config from 'config'
 import { type Request, type Response } from 'express'
 import { AllHtmlEntities as Entities } from 'html-entities'
@@ -16,16 +17,11 @@ import * as utils from '../lib/utils'
 
 const entities = new Entities()
 const VIDEO_DIR = path.resolve('frontend/dist/frontend/assets/public/videos')
-const videoFile = (name: string) => {
-  const resolved = path.resolve(VIDEO_DIR, path.basename(name))
-  if (path.dirname(resolved) !== VIDEO_DIR) throw new Error('Invalid file name')
-  return resolved
-}
 
 export const getVideo = () => {
   return (req: Request, res: Response) => {
-    const path = videoPath()
-    const stat = fs.statSync(path)
+    const videoName = videoFileName()
+    const stat = safeFs.statInside(VIDEO_DIR, videoName)
     const fileSize = stat.size
     const range = req.headers.range
     if (range) {
@@ -33,7 +29,7 @@ export const getVideo = () => {
       const start = parseInt(parts[0], 10)
       const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1
       const chunksize = (end - start) + 1
-      const file = fs.createReadStream(path, { start, end })
+      const file = safeFs.readStreamInside(VIDEO_DIR, videoName, { start, end })
       const head = {
         'Content-Range': `bytes ${start}-${end}/${fileSize}`,
         'Accept-Ranges': 'bytes',
@@ -49,7 +45,7 @@ export const getVideo = () => {
         'Content-Type': 'video/mp4'
       }
       res.writeHead(200, head)
-      fs.createReadStream(path).pipe(res)
+      safeFs.readStreamInside(VIDEO_DIR, videoName).pipe(res)
     }
   }
 }
@@ -86,14 +82,13 @@ export const promotionVideo = () => {
 
 function getSubsFromFile () {
   const subtitles = config.get<string>('application.promotion.subtitles') ?? 'owasp_promo.vtt'
-  const data = fs.readFileSync(videoFile(subtitles), 'utf8')
+  const data = safeFs.readTextInside(VIDEO_DIR, subtitles)
   return data.toString()
 }
 
-function videoPath () {
+function videoFileName () {
   if (config.get<string>('application.promotion.video') !== null) {
-    const video = utils.extractFilename(config.get<string>('application.promotion.video'))
-    return videoFile(video)
+    return path.basename(utils.extractFilename(config.get<string>('application.promotion.video')))
   }
-  return videoFile('owasp_promo.mp4')
+  return 'owasp_promo.mp4'
 }

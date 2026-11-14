@@ -5,7 +5,8 @@
 import i18n from 'i18n'
 import cors from 'cors'
 import fs from 'node:fs'
-import yaml from 'js-yaml'
+import { readFile as readFileAsync } from 'node:fs/promises'
+import { load as parseYaml, CORE_SCHEMA } from 'js-yaml'
 import config from 'config'
 import morgan from 'morgan'
 import multer from 'multer'
@@ -136,7 +137,7 @@ const errorhandler = require('errorhandler')
 
 const startTime = Date.now()
 
-const swaggerDocument = yaml.load(fs.readFileSync('./swagger.yml', 'utf8'), { schema: yaml.CORE_SCHEMA, json: true })
+const swaggerDocument = parseYaml(fs.readFileSync('./swagger.yml', 'utf8'), { schema: CORE_SCHEMA, json: true })
 
 const appName = config.get<string>('application.customMetricsPrefix')
 const startupGauge = new Prometheus.Gauge({
@@ -180,13 +181,9 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
 
   /* CORS restricted to configured origin(s) */
   const allowedOrigins = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',').map(o => o.trim()).filter(o => o !== '' && o !== '*') : []
-  const corsOptions = {
-    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-      callback(null, origin !== undefined && allowedOrigins.includes(origin))
-    }
-  }
-  app.options('*', cors(corsOptions))
-  app.use(cors(corsOptions))
+  const corsMiddleware = cors({ origin: allowedOrigins })
+  app.options('*', corsMiddleware)
+  app.use(corsMiddleware)
 
   /* Security middleware */
   app.use(helmet.noSniff())
@@ -281,11 +278,13 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
       return res.status(403).end()
     }
     if (filePath.endsWith('.tf') || filePath.endsWith('.yml') || filePath.endsWith('Dockerfile')) {
-      fs.readFile(path.join(infraRoot, relToRoot), 'utf8', (err, data) => {
-        if (err) return next()
+      const knownFiles = (fs.readdirSync('infrastructure', { recursive: true }) as string[]).map(f => f.toString())
+      const safeName = knownFiles.find(f => f === relToRoot)
+      if (safeName === undefined) return next()
+      readFileAsync(path.join(infraRoot, safeName), 'utf8').then((data) => {
         const cleaned = data.split('\n').filter(line => !line.trim().match(/^#\s*vuln-code-snippet\s/)).map(line => line.replace(/\s*#\s*vuln-code-snippet\s.*$/, '')).join('\n')
         res.type('text/plain').send(cleaned)
-      })
+      }).catch(() => next())
     } else {
       express.static('infrastructure')(req, res, next)
     }

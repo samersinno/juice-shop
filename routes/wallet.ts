@@ -9,6 +9,13 @@ import { CardModel } from '../models/card'
 
 const userId = (req: Request): number => Number(req.body.UserId)
 
+async function findOwnCard (paymentId: unknown, owner: number) {
+  if (paymentId == null) return null
+  const id = Number(paymentId)
+  if (!Number.isInteger(id) || !Number.isInteger(owner)) return null
+  return await CardModel.findOne({ where: { id, UserId: owner } })
+}
+
 export function getWalletBalance () {
   return async (req: Request, res: Response, next: NextFunction) => {
     const wallet = await WalletModel.findOne({ where: { UserId: userId(req) } })
@@ -22,8 +29,7 @@ export function getWalletBalance () {
 
 export function addWalletBalance () {
   return async (req: Request, res: Response, next: NextFunction) => {
-    const cardId = req.body.paymentId != null ? Number(req.body.paymentId) : null
-    const card = cardId != null && Number.isInteger(cardId) ? await CardModel.findOne({ where: { id: cardId, UserId: userId(req) } }) : null
+    const card = await findOwnCard(req.body.paymentId, userId(req))
     if (card != null) {
       try {
         await WalletModel.increment({ balance: Number(req.body.balance) }, { where: { UserId: userId(req) } })

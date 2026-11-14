@@ -3,13 +3,13 @@
  * SPDX-License-Identifier: MIT
  */
 
-import fs from 'node:fs'
 import path from 'node:path'
 import dns from 'node:dns/promises'
 import { Readable } from 'node:stream'
 import { finished } from 'node:stream/promises'
 import { type Request, type Response, type NextFunction } from 'express'
 
+import * as safeFs from '../lib/safeFs'
 import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
 import * as utils from '../lib/utils'
@@ -54,11 +54,7 @@ export function profileImageUrlUpload () {
           }
           const ext = ['jpg', 'jpeg', 'png', 'svg', 'gif'].includes(url.split('.').slice(-1)[0].toLowerCase()) ? url.split('.').slice(-1)[0].toLowerCase() : 'jpg'
           const uploadDir = path.resolve('frontend/dist/frontend/assets/public/images/uploads')
-          const filePath = path.resolve(uploadDir, path.basename(`${Number(loggedInUser.data.id)}.${ext}`))
-          if (path.dirname(filePath) !== uploadDir) {
-            throw new Error('invalid file path')
-          }
-          const fileStream = fs.createWriteStream(filePath, { flags: 'w' })
+          const fileStream = safeFs.writeStreamInside(uploadDir, `${Number(loggedInUser.data.id)}.${ext}`)
           await finished(Readable.fromWeb(response.body as any).pipe(fileStream))
           const user = await UserModel.findByPk(loggedInUser.data.id)
           await user?.update({ profileImage: `/assets/public/images/uploads/${loggedInUser.data.id}.${ext}` })

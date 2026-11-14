@@ -6,7 +6,7 @@
 import config from 'config'
 import colors from 'colors/safe'
 import path from 'path'
-import fs from 'fs'
+import { readFileSync } from 'fs'
 import { retrieveCodeSnippet } from '../routes/vulnCodeSnippet'
 import { readFixes } from '../routes/vulnCodeFixes'
 import { type Challenge } from '../data/types'
@@ -197,7 +197,7 @@ function loadSourceFile (relativePath: string): string {
     if (relative === '' || relative.startsWith('..') || path.isAbsolute(relative)) {
       return ''
     }
-    const content = fs.readFileSync(path.join(process.cwd(), relative), 'utf8')
+    const content = readFileSync(path.join(process.cwd(), relative), 'utf8')
     sourceFileCache.set(relativePath, content)
     return content
   } catch {
