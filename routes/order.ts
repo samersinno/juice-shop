@@ -3,7 +3,6 @@
  * SPDX-License-Identifier: MIT
  */
 
-import fs from 'node:fs'
 import path from 'node:path'
 import config from 'config'
 import { type Request, type Response, type NextFunction } from 'express'
@@ -19,6 +18,23 @@ import { WalletModel } from '../models/wallet'
 import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
 import * as db from '../data/mongodb'
+import * as safeFs from '../lib/safeFs'
+
+async function findBasketWithProducts (basketId: number) {
+  return await BasketModel.findByPk(basketId, { include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
+}
+
+async function findQuantityOfProduct (productId: number) {
+  return await QuantityModel.findOne({ where: { ProductId: productId } })
+}
+
+async function findDeliveryMethod (deliveryMethodId: number) {
+  return await DeliveryModel.findOne({ where: { id: deliveryMethodId } })
+}
+
+async function findWalletOfUser (userId: number) {
+  return await WalletModel.findOne({ where: { UserId: userId } })
+}
 
 interface Product {
   quantity: number
@@ -32,7 +48,7 @@ interface Product {
 export function placeOrder () {
   return (req: Request, res: Response, next: NextFunction) => {
     const id = String(req.params.id)
-    BasketModel.findOne({ where: { id }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
+    findBasketWithProducts(Number(id))
       .then(async (basket: BasketModel | null) => {
         if (basket != null) {
           const customer = security.authenticatedUsers.from(req)
@@ -47,7 +63,7 @@ export function placeOrder () {
           const { default: PDFDocument } = await import('pdfkit')
           const doc = new PDFDocument()
           const date = new Date().toJSON().slice(0, 10)
-          const fileWriter = doc.pipe(fs.createWriteStream(pdfPath))
+          const fileWriter = doc.pipe(safeFs.writeStreamInside('ftp/', pdfFile))
 
           fileWriter.on('finish', () => {
             void (async () => {
@@ -80,7 +96,7 @@ export function placeOrder () {
             if (BasketItem != null) {
               challengeUtils.solveIf(challenges.christmasSpecialChallenge, () => { return BasketItem.ProductId === products.christmasSpecial.id })
               try {
-                const quantityRow = await QuantityModel.findOne({ where: { ProductId: BasketItem.ProductId } })
+                const quantityRow = await findQuantityOfProduct(Number(BasketItem.ProductId))
                 if (quantityRow) {
                   const newQuantity = quantityRow.quantity - BasketItem.quantity
                   await QuantityModel.update({ quantity: newQuantity }, { where: { ProductId: BasketItem.ProductId } })
@@ -127,7 +143,7 @@ export function placeOrder () {
             eta: 5
           }
           if (req.body.orderDetails?.deliveryMethodId) {
-            const deliveryMethodFromModel = await DeliveryModel.findOne({ where: { id: Number(req.body.orderDetails.deliveryMethodId) } })
+            const deliveryMethodFromModel = await findDeliveryMethod(Number(req.body.orderDetails.deliveryMethodId))
             if (deliveryMethodFromModel != null) {
               deliveryMethod.deluxePrice = deliveryMethodFromModel.deluxePrice
               deliveryMethod.price = deliveryMethodFromModel.price
@@ -150,7 +166,7 @@ export function placeOrder () {
 
           if (req.body.UserId) {
             if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
-              const wallet = await WalletModel.findOne({ where: { UserId: Number(req.body.UserId) } })
+              const wallet = await findWalletOfUser(Number(req.body.UserId))
               if ((wallet != null) && wallet.balance >= totalPrice) {
                 await WalletModel.decrement({ balance: totalPrice }, { where: { UserId: Number(req.body.UserId) } })
               } else {

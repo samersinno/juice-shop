@@ -1,6 +1,5 @@
 import fs from 'node:fs'
-import path from 'node:path'
-import yaml from 'js-yaml'
+import * as safeFs from '../lib/safeFs'
 import { type NextFunction, type Request, type Response } from 'express'
 
 import * as accuracy from '../lib/accuracy'
@@ -30,7 +29,7 @@ export const readFixes = (key: string) => {
   let correct: number = -1
   for (const file of files) {
     if (file.startsWith(`${key}_`)) {
-      const fix = fs.readFileSync(path.join(FixesDir, path.basename(file))).toString()
+      const fix = safeFs.readTextInside(FixesDir, file)
       const metadata = file.split('_')
       const number = metadata[1]
       fixes.push(fix)
@@ -81,10 +80,10 @@ export const checkCorrectFix = () => async (req: Request<Record<string, unknown>
     })
   } else {
     let explanation
-    const infoFile = path.join(path.resolve(FixesDir), path.basename(String(key)) + '.info.yml')
-    if (path.dirname(infoFile) === path.resolve(FixesDir) && fs.existsSync(infoFile)) {
-      // key is validated by readFixes (word characters only), infoFile is confined to FixesDir
-      const codingChallengeInfos: any = yaml.load(fs.readFileSync(infoFile, 'utf8'), { schema: yaml.JSON_SCHEMA })
+    const infoFileName = String(key) + '.info.yml'
+    if (safeFs.existsInside(FixesDir, infoFileName)) {
+      // key is validated by readFixes (word characters only), file is confined to FixesDir
+      const codingChallengeInfos: any = safeFs.parseYamlSafe(safeFs.readTextInside(FixesDir, infoFileName))
       const selectedFixInfo = codingChallengeInfos?.fixes.find(({ id }: { id: number }) => id === selectedFix + 1)
       if (selectedFixInfo?.explanation) explanation = res.__(selectedFixInfo.explanation)
     }

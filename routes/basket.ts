@@ -22,7 +22,7 @@ export function retrieveBasket () {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       const id = String(req.params.id)
-      const basket = await BasketModel.findOne({ where: { id }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
+      const basket = await BasketModel.findByPk(id, { include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
       /* jshint eqeqeq:false */
       challengeUtils.solveIf(challenges.basketAccessChallenge, () => {
         const user = security.authenticatedUsers.from(req)

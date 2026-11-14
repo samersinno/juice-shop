@@ -1,7 +1,7 @@
-import fs from 'node:fs'
+import { readdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
 import path from 'node:path'
 import { diffLines, structuredPatch } from 'diff'
-import yaml from 'js-yaml'
+import { load as loadYaml, JSON_SCHEMA } from 'js-yaml'
 
 import { retrieveCodeSnippet } from '../routes/vulnCodeSnippet'
 
@@ -40,17 +40,17 @@ function safeFixPath (name: string): string {
 }
 
 function readFiles () {
-  const files = fs.readdirSync(path.resolve(fixesPath))
+  const files = readdirSync(path.resolve(fixesPath))
   const keys = files.filter((file: string) => !file.endsWith('.info.yml') && !file.endsWith('.editorconfig'))
   return keys
 }
 
 function writeToFile (json: CacheData) {
-  fs.writeFileSync(cacheFile, JSON.stringify(json, null, '\t'))
+  writeFileSync(cacheFile, JSON.stringify(json, null, '\t'))
 }
 
 function getDataFromFile () {
-  const data = fs.readFileSync(cacheFile).toString()
+  const data = readFileSync(cacheFile).toString()
   return JSON.parse(data)
 }
 
@@ -73,7 +73,7 @@ const computeDiffs = async (keys: string[]) => {
     try {
       const snippet = await retrieveCodeSnippet(val.split('_')[0])
       if (snippet == null) continue
-      const fileData = fs.readFileSync(safeFixPath(val)).toString()
+      const fileData = readFileSync(safeFixPath(val)).toString()
       const diff = diffLines(filterString(fileData), filterString(snippet.snippet))
       let line = 0
       for (const part of diff) {
@@ -140,9 +140,9 @@ function findChangedFiles (current: CacheData, cached: CacheData): string[] {
 
 function loadChallengeInfo (challengeName: string): ChallengeInfo | null {
   const infoPath = safeFixPath(`${challengeName}.info.yml`)
-  if (!fs.existsSync(infoPath)) return null
-  const content = fs.readFileSync(infoPath, 'utf-8')
-  return yaml.load(content, { schema: yaml.JSON_SCHEMA, json: true }) as ChallengeInfo
+  if (!existsSync(infoPath)) return null
+  const content = readFileSync(infoPath, 'utf-8')
+  return loadYaml(content, { schema: JSON_SCHEMA, json: true }) as ChallengeInfo
 }
 
 function getFixExplanation (file: string, info: ChallengeInfo | null): string | null {
@@ -162,7 +162,7 @@ async function computeChallengeDiff (file: string): Promise<ChallengeDiff | null
   const snippet = await retrieveCodeSnippet(challengeName)
   if (!snippet) return null
 
-  const fileData = fs.readFileSync(safeFixPath(file)).toString()
+  const fileData = readFileSync(safeFixPath(file)).toString()
   const patch = structuredPatch(file, file, filterString(snippet.snippet), filterString(fileData))
 
   const lines: DiffLine[] = []

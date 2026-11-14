@@ -13,17 +13,29 @@ import { UserModel } from '../models/user'
 import { CardModel } from '../models/card'
 import * as utils from '../lib/utils'
 
+async function findUserWithRole (userId: string, role: string) {
+  return await UserModel.findOne({ where: { id: userId, role } })
+}
+
+async function findWalletOfUser (userId: string) {
+  return await WalletModel.findOne({ where: { UserId: userId } })
+}
+
+async function findCardOfUser (cardId: string, userId: string) {
+  return await CardModel.findOne({ where: { id: cardId, UserId: userId } })
+}
+
 export function upgradeToDeluxe () {
   return async (req: Request, res: Response, next: NextFunction) => {
     const userId = String(req.body.UserId ?? '').replace(/[^\w-]/g, '')
     try {
-      const user = await UserModel.findOne({ where: { id: userId, role: security.roles.customer } })
+      const user = await findUserWithRole(userId, security.roles.customer)
       if (user == null) {
         res.status(400).json({ status: 'error', error: 'Something went wrong. Please try again!' })
         return
       }
       if (req.body.paymentMode === 'wallet') {
-        const wallet = await WalletModel.findOne({ where: { UserId: userId } })
+        const wallet = await findWalletOfUser(userId)
         if ((wallet != null) && wallet.balance < 49) {
           res.status(400).json({ status: 'error', error: 'Insuffienct funds in Wallet' })
           return
@@ -33,7 +45,7 @@ export function upgradeToDeluxe () {
       }
 
       if (req.body.paymentMode === 'card') {
-        const card = await CardModel.findOne({ where: { id: String(req.body.paymentId ?? '').replace(/[^\w-]/g, ''), UserId: userId } })
+        const card = await findCardOfUser(String(req.body.paymentId ?? '').replace(/[^\w-]/g, ''), userId)
         if ((card == null) || card.expYear < new Date().getFullYear() || (card.expYear === new Date().getFullYear() && card.expMonth - 1 < new Date().getMonth())) {
           res.status(400).json({ status: 'error', error: 'Invalid Card' })
           return

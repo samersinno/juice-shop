@@ -21,6 +21,66 @@ resource "aws_vpc" "main" {
   }
 }
 
+resource "aws_flow_log" "main" {
+  vpc_id               = aws_vpc.main.id
+  traffic_type         = "ALL"
+  log_destination_type = "cloud-watch-logs"
+  log_destination      = aws_cloudwatch_log_group.vpc_flow.arn
+  iam_role_arn         = aws_iam_role.vpc_flow.arn
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+  }
+}
+
+resource "aws_cloudwatch_log_group" "vpc_flow" {
+  name              = "/vpc/${var.project_name}-flow-logs"
+  retention_in_days = 365
+  kms_key_id        = aws_kms_key.logs.arn
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+  }
+}
+
+resource "aws_iam_role" "vpc_flow" {
+  name = "${var.project_name}-vpc-flow-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
+      Principal = { Service = "vpc-flow-logs.amazonaws.com" }
+    }]
+  })
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+  }
+}
+
+resource "aws_iam_role_policy" "vpc_flow" {
+  name = "${var.project_name}-vpc-flow-policy"
+  role = aws_iam_role.vpc_flow.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = [
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
+        "logs:DescribeLogStreams"
+      ]
+      Effect   = "Allow"
+      Resource = "${aws_cloudwatch_log_group.vpc_flow.arn}:*"
+    }]
+  })
+}
+
 resource "aws_subnet" "public" {
   count                   = length(var.public_subnet_cidrs)
   vpc_id                  = aws_vpc.main.id

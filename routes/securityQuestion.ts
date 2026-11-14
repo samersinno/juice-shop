@@ -16,11 +16,12 @@ export function securityQuestion () {
       return
     }
     try {
-      const answer = await SecurityAnswerModel.findOne({
+      const [answer] = await SecurityAnswerModel.findAll({
         include: [{
           model: UserModel,
           where: { email: String(email) }
-        }]
+        }],
+        limit: 1
       })
       if (answer != null) {
         const question = await SecurityQuestionModel.findByPk(answer.SecurityQuestionId)

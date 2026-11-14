@@ -1,4 +1,4 @@
-import fs from 'node:fs/promises'
+import { lstat, readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import logger from './logger'
 
@@ -24,14 +24,14 @@ export const findFilesWithCodeChallenges = async (paths: readonly string[]): Pro
         continue
       }
       const safePath = path.join(process.cwd(), relative)
-      if ((await fs.lstat(safePath)).isDirectory()) {
-        const files = await fs.readdir(safePath)
+      if ((await lstat(safePath)).isDirectory()) {
+        const files = await readdir(safePath)
         const moreMatches = await findFilesWithCodeChallenges(
           files.map(file => path.resolve(safePath, file))
         )
         matches.push(...moreMatches)
       } else {
-        const code = await fs.readFile(safePath, 'utf8')
+        const code = await readFile(safePath, 'utf8')
         if (
           // strings are split so that it doesn't find itself...
           code.includes('// vuln-code' + '-snippet start') ||

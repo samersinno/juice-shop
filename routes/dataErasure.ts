@@ -33,11 +33,12 @@ router.get('/', (req: Request, res: Response, next: NextFunction) => {
     const email = loggedInUser.data.email
 
     try {
-      const answer = await SecurityAnswerModel.findOne({
+      const [answer] = await SecurityAnswerModel.findAll({
         include: [{
           model: UserModel,
           where: { email }
-        }]
+        }],
+        limit: 1
       })
       if (answer == null) {
         throw new Error('No answer found!')

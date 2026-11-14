@@ -14,9 +14,15 @@ resource "aws_vpc" "main_c3" {
   }
 }
 
+resource "aws_kms_key" "vpc_flow" {
+  description         = "KMS key for VPC flow log group encryption"
+  enable_key_rotation = true
+}
+
 resource "aws_cloudwatch_log_group" "vpc_flow" {
   name              = "${var.project_name}-vpc-flow-logs"
   retention_in_days = 365
+  kms_key_id        = aws_kms_key.vpc_flow.arn
 }
 
 resource "aws_iam_role" "vpc_flow" {

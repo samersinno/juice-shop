@@ -3,7 +3,6 @@
  * SPDX-License-Identifier: MIT
  */
 
-import fs from 'node:fs'
 import vm from 'node:vm'
 import path from 'node:path'
 import { pipeline } from 'node:stream/promises'
@@ -15,6 +14,7 @@ import * as challengeUtils from '../lib/challengeUtils'
 import { challenges } from '../data/datacache'
 import * as utils from '../lib/utils'
 import { parseXmlString } from '../lib/xml'
+import * as safeFs from '../lib/safeFs'
 
 function ensureFileIsPassed ({ file }: Request, res: Response, next: NextFunction) {
   if (file != null) {
@@ -30,8 +30,8 @@ async function extractZipBuffer (buffer: Buffer) {
     const fileName = entry.path
     const absolutePath = path.resolve('uploads/complaints/' + fileName)
     challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
-    if (absolutePath.includes(path.resolve('.'))) {
-      await pipeline(entry.stream(), fs.createWriteStream(absolutePath))
+    if (entry.type === 'File') {
+      await pipeline(entry.stream(), safeFs.writeStreamInside('uploads/complaints/', fileName))
     }
   }
 }

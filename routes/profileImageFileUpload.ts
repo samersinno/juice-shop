@@ -3,14 +3,13 @@
  * SPDX-License-Identifier: MIT
  */
 
-import fs from 'node:fs/promises'
 import path from 'node:path'
 import { type Request, type Response, type NextFunction } from 'express'
-import fileType from 'file-type'
 
 import logger from '../lib/logger'
 import { UserModel } from '../models/user'
 import * as security from '../lib/insecurity'
+import * as safeFs from '../lib/safeFs'
 
 export function profileImageFileUpload () {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -21,7 +20,7 @@ export function profileImageFileUpload () {
       next(new Error('Illegal file type'))
       return
     }
-    const uploadedFileType = await fileType.fromBuffer(buffer)
+    const uploadedFileType = await (await import('file-type')).fileTypeFromBuffer(buffer)
     if (uploadedFileType === undefined) {
       res.status(500)
       next(new Error('Illegal file type'))
@@ -45,7 +44,7 @@ export function profileImageFileUpload () {
       return
     }
     try {
-      await fs.writeFile(filePath, buffer)
+      await safeFs.writeFileInside(uploadDir, path.basename(filePath), buffer)
     } catch (err) {
       logger.warn('Error writing file: ' + (err instanceof Error ? err.message : String(err)))
     }

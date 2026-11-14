@@ -5,7 +5,9 @@
           orderId: z.string().describe('The order ID of the damaged order (format: xxxx-xxxxxxxxxxxxxxxx)')
         }),
         execute: async ({ discount, orderId, authenticatedUser }) => {
-          const order = await db.ordersCollection.findOne({ orderId: String(orderId), email: String(authenticatedUser?.email), status: OrderStatus.DAMAGED })
+          const { email } = authenticatedUser ?? {}
+          const { DAMAGED: status } = OrderStatus
+          const order = await db.ordersCollection.findOne({ orderId: String(orderId), email: String(email), status })
           if (!order) return { error: 'No verified damaged order found for this order ID.' }
           const couponCode = security.generateCoupon(discount)
           return { couponCode, discount }
